@@ -1,0 +1,1023 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Delta Roulette - Two-Dice Casino Game</title>
+<style>
+  :root {
+    --felt-green: #0B4F2C;
+    --felt-dark: #052c17;
+    --wood-rim: #2d1506;
+    --gold: #eab308;
+    --gold-bright: #fef08a;
+    --gold-dark: #854d0e;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+
+  body {
+    background: #090d16;
+    color: #f8fafc;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px;
+    overflow-x: hidden;
+  }
+
+  /* Header Bar */
+  header {
+    width: 100%;
+    max-width: 1050px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #1e293b;
+    padding: 10px 16px;
+    border-radius: 10px;
+    border: 1px solid #334155;
+    margin-bottom: 10px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  }
+
+  .brand h1 {
+    font-size: 1.4rem;
+    color: var(--gold-bright);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .header-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .btn {
+    background: #334155;
+    color: #f8fafc;
+    border: 1px solid #475569;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.85rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+  }
+
+  .btn:hover {
+    background: #475569;
+    border-color: var(--gold);
+    color: var(--gold-bright);
+  }
+
+  .btn-gold {
+    background: linear-gradient(135deg, #a16207, #ca8a04);
+    color: #fff;
+    border-color: var(--gold-bright);
+  }
+  .btn-gold:hover {
+    background: linear-gradient(135deg, #ca8a04, #eab308);
+  }
+
+  /* Multi-Player Bar */
+  .player-bar {
+    width: 100%;
+    max-width: 1050px;
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+
+  .player-card {
+    flex: 1;
+    min-width: 180px;
+    background: #182232;
+    border: 2px solid #334155;
+    border-radius: 8px;
+    padding: 8px 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: all 0.2s;
+  }
+
+  .player-card.active {
+    border-color: var(--gold);
+    background: #1e293b;
+    box-shadow: 0 0 10px rgba(234, 179, 8, 0.25);
+  }
+
+  .player-badge {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 6px;
+  }
+
+  .player-info {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .player-name {
+    font-weight: 700;
+    font-size: 0.9rem;
+  }
+
+  .player-balance {
+    font-size: 0.8rem;
+    color: #94a3b8;
+  }
+
+  /* Gaming Table Layout */
+  .table-container {
+    position: relative;
+    width: 100%;
+    max-width: 1050px;
+    background: radial-gradient(circle at center, var(--felt-green) 0%, var(--felt-dark) 100%);
+    border: 14px solid var(--wood-rim);
+    border-radius: 24px;
+    box-shadow: 0 12px 36px rgba(0,0,0,0.8), inset 0 0 40px rgba(0,0,0,0.6);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+  }
+
+  /* SVG Felt Mat */
+  #felt-svg {
+    width: 100%;
+    height: auto;
+    max-height: 580px;
+    overflow: visible;
+  }
+
+  .hex-tile {
+    cursor: pointer;
+    transition: transform 0.15s;
+  }
+  .hex-tile:hover path, .hex-tile:hover rect {
+    fill: rgba(234, 179, 8, 0.2);
+  }
+
+  .hex-bg {
+    fill: rgba(5, 44, 23, 0.85);
+    stroke: var(--gold);
+    stroke-width: 2.2;
+    filter: drop-shadow(0px 3px 4px rgba(0,0,0,0.5));
+  }
+
+  .hex-bg.winning {
+    animation: flashGold 0.5s infinite alternate;
+  }
+
+  @keyframes flashGold {
+    0% { fill: rgba(234, 179, 8, 0.4); stroke: #ffffff; stroke-width: 3.5; }
+    100% { fill: rgba(234, 179, 8, 0.85); stroke: var(--gold-bright); stroke-width: 4; }
+  }
+
+  .tile-label {
+    fill: #f8fafc;
+    font-weight: 800;
+    font-size: 15px;
+    text-anchor: middle;
+    pointer-events: none;
+  }
+
+  .tile-payout {
+    fill: var(--gold-bright);
+    font-weight: 700;
+    font-size: 11px;
+    text-anchor: middle;
+    pointer-events: none;
+  }
+
+  /* Dice Tray Corner */
+  .dice-tray {
+    position: absolute;
+    top: 24px;
+    right: 24px;
+    width: 190px;
+    height: 160px;
+    background: radial-gradient(circle, #08381e 0%, #031c10 100%);
+    border: 4px solid var(--gold-dark);
+    border-radius: 16px;
+    box-shadow: inset 0 0 15px rgba(0,0,0,0.8), 0 4px 12px rgba(0,0,0,0.6);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.1s;
+  }
+
+  .dice-tray:hover {
+    border-color: var(--gold);
+  }
+
+  .tray-title {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--gold-bright);
+    margin-bottom: 8px;
+    font-weight: 700;
+  }
+
+  .dice-container {
+    display: flex;
+    gap: 16px;
+  }
+
+  /* 3D Ruby Red Dice */
+  .die {
+    width: 52px;
+    height: 52px;
+    background: radial-gradient(circle at 30% 30%, #ef4444, #991b1b 80%);
+    border-radius: 10px;
+    box-shadow: inset 0 0 6px rgba(255,255,255,0.4), 0 6px 10px rgba(0,0,0,0.6);
+    border: 1px solid #fca5a5;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    padding: 6px;
+    transition: transform 0.4s ease-out;
+  }
+
+  .die.rolling {
+    animation: rollAnim 0.4s ease-out;
+  }
+
+  @keyframes rollAnim {
+    0% { transform: rotate(0deg) scale(0.9); }
+    50% { transform: rotate(180deg) scale(1.15); }
+    100% { transform: rotate(360deg) scale(1); }
+  }
+
+  .pip {
+    width: 9px;
+    height: 9px;
+    background: radial-gradient(circle, #fef08a 0%, #eab308 100%);
+    border-radius: 50%;
+    justify-self: center;
+    align-self: center;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.8);
+  }
+
+  /* Controls & Chips Panel */
+  .controls-panel {
+    width: 100%;
+    max-width: 1050px;
+    margin-top: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #1e293b;
+    padding: 12px 20px;
+    border-radius: 12px;
+    border: 1px solid #334155;
+  }
+
+  .chip-selector {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .chip {
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    border: 4px dashed #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 0.85rem;
+    cursor: pointer;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+    transition: transform 0.15s, box-shadow 0.15s;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+  }
+
+  .chip:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 6px 12px rgba(0,0,0,0.7);
+  }
+
+  .chip.selected {
+    transform: translateY(-6px) scale(1.1);
+    border-style: solid;
+    border-color: var(--gold-bright);
+    box-shadow: 0 0 12px var(--gold);
+  }
+
+  /* Chip Denomination Colors ($1 to $100) */
+  .chip-1 { background: #f8fafc; color: #0f172a; text-shadow: none; border-color: #cbd5e1; }
+  .chip-5 { background: #dc2626; color: #ffffff; }
+  .chip-10 { background: #2563eb; color: #ffffff; }
+  .chip-25 { background: #16a34a; color: #ffffff; }
+  .chip-100 { background: #0f172a; color: var(--gold-bright); border-color: var(--gold); }
+
+  .action-buttons {
+    display: flex;
+    gap: 10px;
+  }
+
+  .btn-roll {
+    padding: 10px 28px;
+    font-size: 1.1rem;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #16a34a, #15803d);
+    color: white;
+    border: 2px solid #86efac;
+    box-shadow: 0 4px 12px rgba(22, 163, 74, 0.4);
+  }
+  .btn-roll:hover {
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+  }
+
+  /* Setup & Rules Modals */
+  .modal-overlay {
+    position: fixed;
+    top: 0; left: 0; width: 100vw; height: 100vh;
+    background: rgba(0,0,0,0.75);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+  }
+
+  .modal-overlay.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .modal {
+    background: #1e293b;
+    border: 2px solid var(--gold);
+    border-radius: 12px;
+    padding: 24px;
+    width: 90%;
+    max-width: 460px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.8);
+  }
+
+  .modal h2 {
+    color: var(--gold-bright);
+    margin-bottom: 16px;
+  }
+
+  .player-input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+
+  .player-input-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .player-input-row input {
+    flex: 1;
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid #475569;
+    background: #0f172a;
+    color: white;
+    font-weight: 600;
+  }
+
+  .placed-chip {
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+
+  <!-- Top Navigation Header -->
+  <header>
+    <div class="brand">
+      <h1>Delta Roulette</h1>
+    </div>
+    <div class="header-actions">
+      <button class="btn" onclick="openRulesModal()">❓ How to Play</button>
+      <button class="btn" onclick="openMultiplayerModal()">👥 Players</button>
+      <button class="btn" onclick="exportHistoryCSV()">📥 Export CSV</button>
+      <button class="btn" onclick="toggleFullscreen()">🖥️ Fullscreen</button>
+    </div>
+  </header>
+
+  <!-- Multi-player Selection Bar -->
+  <div class="player-bar" id="playerBar"></div>
+
+  <!-- Table Felt & Dice Tray -->
+  <div class="table-container">
+    
+    <!-- SVG Gaming Board -->
+    <svg id="felt-svg" viewBox="0 0 900 600"></svg>
+
+    <!-- Corner Dice Tray -->
+    <div class="dice-tray" onclick="rollDice()" title="Click to Roll Dice!">
+      <div class="tray-title">Dice Tray</div>
+      <div class="dice-container">
+        <div class="die" id="die1"></div>
+        <div class="die" id="die2"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Bottom Betting Controls -->
+  <div class="controls-panel">
+    <div class="chip-selector">
+      <span style="font-weight: 700; color: #94a3b8; margin-right: 4px;">CHIPS:</span>
+      <div class="chip chip-1 selected" onclick="selectChip(1)">$1</div>
+      <div class="chip chip-5" onclick="selectChip(5)">$5</div>
+      <div class="chip chip-10" onclick="selectChip(10)">$10</div>
+      <div class="chip chip-25" onclick="selectChip(25)">$25</div>
+      <div class="chip chip-100" onclick="selectChip(100)">$100</div>
+    </div>
+
+    <div class="action-buttons">
+      <button class="btn" onclick="clearCurrentPlayerBets()">Clear Bets</button>
+      <button class="btn btn-gold btn-roll" id="rollBtn" onclick="rollDice()">ROLL DICE 🎲</button>
+    </div>
+  </div>
+
+  <!-- How to Play Rules Modal -->
+  <div class="modal-overlay" id="rulesModal">
+    <div class="modal" style="max-width: 520px; max-height: 85vh; overflow-y: auto;">
+      <h2>How to Play Delta Roulette</h2>
+      <div style="color: #cbd5e1; font-size: 0.88rem; line-height: 1.5; display: flex; flex-direction: column; gap: 12px; text-align: left;">
+        <p><strong>Delta Roulette</strong> is an exciting casino dice game played with two standard six-sided dice.</p>
+
+        <div>
+          <h3 style="color: var(--gold-bright); font-size: 0.95rem; margin-bottom: 4px;">1. Placing Bets</h3>
+          <p>Select a chip denomination ($1, $5, $10, $25, or $100) from the bottom panel and click any spot on the gaming mat:</p>
+          <ul style="margin-left: 20px; margin-top: 4px;">
+            <li><strong>Pyramid Pairs (Hexagon Tiles):</strong> Bet on exact dice pair combinations regardless of order.
+              <ul style="margin-left: 16px; margin-top: 2px;">
+                <li><strong>Mixed Pairs</strong> (e.g., 1 & 6, 3 & 5): Pays <strong>15:1</strong></li>
+                <li><strong>Doubles</strong> (e.g., 1 & 1, 6 & 6): Pays <strong>30:1</strong></li>
+              </ul>
+            </li>
+            <li style="margin-top: 4px;"><strong>Sum Spaces (Bottom Bar):</strong> Bet on the combined sum of both rolled dice:
+              <ul style="margin-left: 16px; margin-top: 2px;">
+                <li><strong>Sum ≤ 6:</strong> Pays <strong>2:1</strong></li>
+                <li><strong>Sum = 7:</strong> Pays <strong>5:1</strong></li>
+                <li><strong>Sum ≥ 8:</strong> Pays <strong>2:1</strong></li>
+              </ul>
+            </li>
+          </ul>
+        </div>
+
+        <div>
+          <h3 style="color: var(--gold-bright); font-size: 0.95rem; margin-bottom: 4px;">2. Turn Structure</h3>
+          <p>Once bets are placed, click <strong>ROLL DICE 🎲</strong> or click directly on the <strong>Dice Tray</strong> in the top right corner.</p>
+        </div>
+
+        <div>
+          <h3 style="color: var(--gold-bright); font-size: 0.95rem; margin-bottom: 4px;">3. Winning & Settlement</h3>
+          <p>Winning tiles highlight for <strong>1 second</strong>. All winning payouts credit automatically to the active bankrolls, after which winning highlights and placed chips clear from the felt for the next round.</p>
+        </div>
+      </div>
+      <div style="margin-top: 20px; text-align: right;">
+        <button class="btn btn-gold" onclick="closeRulesModal()">Got It!</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Multi-player Setup Modal -->
+  <div class="modal-overlay" id="playerModal">
+    <div class="modal">
+      <h2>Player Setup</h2>
+      <div class="player-input-group" id="playerInputContainer"></div>
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <button class="btn" onclick="adjustPlayerCount(-1)">- Remove</button>
+          <button class="btn" onclick="adjustPlayerCount(1)">+ Add</button>
+        </div>
+        <button class="btn btn-gold" onclick="savePlayers()">Save & Start</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // Game State
+  let players = [
+    { id: 1, name: "Player 1", balance: 500, color: "#06b6d4" },
+    { id: 2, name: "Player 2", balance: 500, color: "#f59e0b" }
+  ];
+  let activePlayerIndex = 0;
+  let selectedChipValue = 1;
+  let bets = {}; // tileId -> Array of { playerId, amount }
+  let historyLog = [];
+  let isRolling = false;
+
+  // Sound Effects Synthesizer
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  function playSound(type) {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    if (type === 'chip') {
+      osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.05);
+      gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.05);
+      osc.start(); osc.stop(audioCtx.currentTime + 0.05);
+    } else if (type === 'roll') {
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+      osc.frequency.linearRampToValueAtTime(40, audioCtx.currentTime + 0.3);
+      gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+      osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+    } else if (type === 'win') {
+      const now = audioCtx.currentTime;
+      osc.frequency.setValueAtTime(523.25, now);
+      osc.frequency.setValueAtTime(659.25, now + 0.1);
+      osc.frequency.setValueAtTime(783.99, now + 0.2);
+      gain.gain.setValueAtTime(0.3, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+      osc.start(now); osc.stop(now + 0.5);
+    }
+  }
+
+  // Exact Regular Hexagon Coordinate Generator
+  function getHexPoints(cx, cy, r) {
+    let pts = [];
+    for (let i = 0; i < 6; i++) {
+      let angle = (Math.PI / 180) * (60 * i - 30);
+      let x = cx + r * Math.cos(angle);
+      let y = cy + r * Math.sin(angle);
+      pts.push(`${x.toFixed(2)},${y.toFixed(2)}`);
+    }
+    return pts.join(" ");
+  }
+
+  function renderMat() {
+    const svg = document.getElementById("felt-svg");
+    svg.innerHTML = "";
+
+    const R = 42; // Uncompressed regular hex radius
+    const w = Math.sqrt(3) * R; // ~72.746 horizontal spacing
+    const rowDy = 1.5 * R; // 63 vertical spacing
+    const centerX = 450;
+    const startY = 85;
+
+    const grid = [
+      [{ pair: "1,6", ratio: "15:1" }],
+      [{ pair: "1,5", ratio: "15:1" }, { pair: "2,6", ratio: "15:1" }],
+      [{ pair: "1,4", ratio: "15:1" }, { pair: "2,5", ratio: "15:1" }, { pair: "3,6", ratio: "15:1" }],
+      [{ pair: "1,3", ratio: "15:1" }, { pair: "2,4", ratio: "15:1" }, { pair: "3,5", ratio: "15:1" }, { pair: "4,6", ratio: "15:1" }],
+      [{ pair: "1,2", ratio: "15:1" }, { pair: "2,3", ratio: "15:1" }, { pair: "3,4", ratio: "15:1" }, { pair: "4,5", ratio: "15:1" }, { pair: "5,6", ratio: "15:1" }],
+      [{ pair: "1,1", ratio: "30:1" }, { pair: "2,2", ratio: "30:1" }, { pair: "3,3", ratio: "30:1" }, { pair: "4,4", ratio: "30:1" }, { pair: "5,5", ratio: "30:1" }, { pair: "6,6", ratio: "30:1" }]
+    ];
+
+    // Build 21 Regular Hexagons
+    grid.forEach((row, rIdx) => {
+      const n = row.length;
+      const y = startY + rIdx * rowDy;
+      const startX = centerX - ((n - 1) / 2) * w;
+
+      row.forEach((item, cIdx) => {
+        const x = startX + cIdx * w;
+        const tileId = item.pair;
+        const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        g.setAttribute("class", "hex-tile");
+        g.setAttribute("onclick", `placeBet('${tileId}')`);
+
+        const path = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+        path.setAttribute("points", getHexPoints(x, y, R));
+        path.setAttribute("class", "hex-bg");
+        path.setAttribute("id", `tile-${tileId}`);
+
+        const textPair = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        textPair.setAttribute("x", x);
+        textPair.setAttribute("y", y - 4);
+        textPair.setAttribute("class", "tile-label");
+        textPair.textContent = item.pair;
+
+        const textRatio = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        textRatio.setAttribute("x", x);
+        textRatio.setAttribute("y", y + 14);
+        textRatio.setAttribute("class", "tile-payout");
+        textRatio.textContent = item.ratio;
+
+        g.appendChild(path);
+        g.appendChild(textPair);
+        g.appendChild(textRatio);
+
+        const chipGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        chipGroup.setAttribute("id", `chips-${tileId}`);
+        g.appendChild(chipGroup);
+
+        svg.appendChild(g);
+      });
+    });
+
+    // Build Bottom 3 Sum Spaces
+    const sumSpaces = [
+      { id: "sum_low", label: "sum ≤ 6", ratio: "2:1", x: 260, y: 480, w: 220, h: 65 },
+      { id: "sum_mid", label: "sum = 7", ratio: "5:1", x: 450, y: 480, w: 120, h: 65 },
+      { id: "sum_high", label: "sum ≥ 8", ratio: "2:1", x: 640, y: 480, w: 220, h: 65 }
+    ];
+
+    sumSpaces.forEach(s => {
+      const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      g.setAttribute("class", "hex-tile");
+      g.setAttribute("onclick", `placeBet('${s.id}')`);
+
+      const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+      rect.setAttribute("x", s.x - s.w / 2);
+      rect.setAttribute("y", s.y - s.h / 2);
+      rect.setAttribute("width", s.w);
+      rect.setAttribute("height", s.h);
+      rect.setAttribute("rx", 16);
+      rect.setAttribute("class", "hex-bg");
+      rect.setAttribute("id", `tile-${s.id}`);
+
+      const textL = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      textL.setAttribute("x", s.x);
+      textL.setAttribute("y", s.y - 4);
+      textL.setAttribute("class", "tile-label");
+      textL.textContent = s.label;
+
+      const textR = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      textR.setAttribute("x", s.x);
+      textR.setAttribute("y", s.y + 16);
+      textR.setAttribute("class", "tile-payout");
+      textR.textContent = s.ratio;
+
+      g.appendChild(rect);
+      g.appendChild(textL);
+      g.appendChild(textR);
+
+      const chipGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      chipGroup.setAttribute("id", `chips-${s.id}`);
+      g.appendChild(chipGroup);
+
+      svg.appendChild(g);
+    });
+  }
+
+  // Draw Pips on Ruby Red 3D Dice
+  function drawDiePips(dieId, val) {
+    const el = document.getElementById(dieId);
+    el.innerHTML = "";
+    
+    const pipMap = {
+      1: [5],
+      2: [1, 9],
+      3: [1, 5, 9],
+      4: [1, 3, 7, 9],
+      5: [1, 3, 5, 7, 9],
+      6: [1, 3, 4, 6, 7, 9]
+    };
+
+    const activePips = pipMap[val] || [];
+    for (let i = 1; i <= 9; i++) {
+      if (activePips.includes(i)) {
+        const pip = document.createElement("div");
+        pip.className = "pip";
+        el.appendChild(pip);
+      } else {
+        el.appendChild(document.createElement("div"));
+      }
+    }
+  }
+
+  // Betting Actions
+  function placeBet(tileId) {
+    if (isRolling) return;
+    const player = players[activePlayerIndex];
+    if (player.balance < selectedChipValue) return;
+
+    player.balance -= selectedChipValue;
+    if (!bets[tileId]) bets[tileId] = [];
+
+    const existing = bets[tileId].find(b => b.playerId === player.id);
+    if (existing) {
+      existing.amount += selectedChipValue;
+    } else {
+      bets[tileId].push({ playerId: player.id, amount: selectedChipValue });
+    }
+
+    playSound('chip');
+    updatePlayerBar();
+    renderChips();
+  }
+
+  // Get Authentic Casino Chip Style for On-Felt Rendering
+  function getChipColors(amount) {
+    if (amount >= 100) return { fill: "#0f172a", stroke: "#eab308", text: "#fef08a" };
+    if (amount >= 25) return { fill: "#16a34a", stroke: "#ffffff", text: "#ffffff" };
+    if (amount >= 10) return { fill: "#2563eb", stroke: "#ffffff", text: "#ffffff" };
+    if (amount >= 5) return { fill: "#dc2626", stroke: "#ffffff", text: "#ffffff" };
+    return { fill: "#f8fafc", stroke: "#cbd5e1", text: "#0f172a" };
+  }
+
+  function renderChips() {
+    document.querySelectorAll("[id^='chips-']").forEach(g => g.innerHTML = "");
+
+    Object.keys(bets).forEach(tileId => {
+      const chipGroup = document.getElementById(`chips-${tileId}`);
+      if (!chipGroup) return;
+
+      const tileEl = document.getElementById(`tile-${tileId}`);
+      let bbox = { x: 0, y: 0 };
+      if (tileEl.tagName === 'polygon') {
+        const pts = tileEl.getAttribute('points').split(' ').map(p => p.split(',').map(Number));
+        bbox.x = pts.reduce((acc, p) => acc + p[0], 0) / 6;
+        bbox.y = pts.reduce((acc, p) => acc + p[1], 0) / 6;
+      } else {
+        bbox.x = parseFloat(tileEl.getAttribute('x')) + parseFloat(tileEl.getAttribute('width')) / 2;
+        bbox.y = parseFloat(tileEl.getAttribute('y')) + parseFloat(tileEl.getAttribute('height')) / 2;
+      }
+
+      bets[tileId].forEach((b, idx) => {
+        const colors = getChipColors(b.amount);
+        const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        
+        // Chip Disc with Casino Dashed Outer Rim
+        const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        circle.setAttribute("cx", bbox.x + (idx * 4));
+        circle.setAttribute("cy", bbox.y + (idx * 4));
+        circle.setAttribute("r", 13);
+        circle.setAttribute("fill", colors.fill);
+        circle.setAttribute("stroke", colors.stroke);
+        circle.setAttribute("stroke-width", "2.5");
+        circle.setAttribute("stroke-dasharray", "3,2");
+        circle.setAttribute("class", "placed-chip");
+
+        // Amount Label
+        const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        text.setAttribute("x", bbox.x + (idx * 4));
+        text.setAttribute("y", bbox.y + (idx * 4) + 4);
+        text.setAttribute("fill", colors.text);
+        text.setAttribute("font-size", "10px");
+        text.setAttribute("font-weight", "800");
+        text.setAttribute("text-anchor", "middle");
+        text.textContent = `$${b.amount}`;
+
+        g.appendChild(circle);
+        g.appendChild(text);
+        chipGroup.appendChild(g);
+      });
+    });
+  }
+
+  function clearCurrentPlayerBets() {
+    if (isRolling) return;
+    const player = players[activePlayerIndex];
+    Object.keys(bets).forEach(tileId => {
+      const idx = bets[tileId].findIndex(b => b.playerId === player.id);
+      if (idx !== -1) {
+        player.balance += bets[tileId][idx].amount;
+        bets[tileId].splice(idx, 1);
+      }
+    });
+    updatePlayerBar();
+    renderChips();
+  }
+
+  // Roll Dice & Evaluate Payouts
+  function rollDice() {
+    if (isRolling) return;
+    isRolling = true;
+
+    playSound('roll');
+    const d1El = document.getElementById("die1");
+    const d2El = document.getElementById("die2");
+    
+    d1El.classList.add("rolling");
+    d2El.classList.add("rolling");
+
+    setTimeout(() => {
+      const d1 = Math.floor(Math.random() * 6) + 1;
+      const d2 = Math.floor(Math.random() * 6) + 1;
+
+      drawDiePips("die1", d1);
+      drawDiePips("die2", d2);
+
+      d1El.classList.remove("rolling");
+      d2El.classList.remove("rolling");
+
+      evaluateOutcome(d1, d2);
+    }, 400);
+  }
+
+  function evaluateOutcome(d1, d2) {
+    const sum = d1 + d2;
+    const pairKey = d1 <= d2 ? `${d1},${d2}` : `${d2},${d1}`;
+    const isDouble = (d1 === d2);
+
+    // Winning tiles
+    const winningTiles = [pairKey];
+    if (sum <= 6) winningTiles.push("sum_low");
+    if (sum === 7) winningTiles.push("sum_mid");
+    if (sum >= 8) winningTiles.push("sum_high");
+
+    // Highlight winning tiles
+    document.querySelectorAll(".hex-bg").forEach(el => el.classList.remove("winning"));
+    winningTiles.forEach(id => {
+      const el = document.getElementById(`tile-${id}`);
+      if (el) el.classList.add("winning");
+    });
+
+    // Total Multiplier Payouts
+    const multipliers = {
+      pair_normal: 15,
+      pair_double: 30,
+      sum_low: 2,
+      sum_mid: 5,
+      sum_high: 2
+    };
+
+    let playerWinnings = {};
+    let totalPayoutThisRound = 0;
+
+    Object.keys(bets).forEach(tileId => {
+      if (winningTiles.includes(tileId)) {
+        let mult = 0;
+        if (tileId.includes(",")) {
+          mult = isDouble ? multipliers.pair_double : multipliers.pair_normal;
+        } else {
+          mult = multipliers[tileId];
+        }
+
+        bets[tileId].forEach(b => {
+          const winAmount = b.amount * mult;
+          if (!playerWinnings[b.playerId]) playerWinnings[b.playerId] = 0;
+          playerWinnings[b.playerId] += winAmount;
+          totalPayoutThisRound += winAmount;
+        });
+      }
+    });
+
+    if (totalPayoutThisRound > 0) playSound('win');
+
+    // Add to CSV history
+    historyLog.push({
+      round: historyLog.length + 1,
+      timestamp: new Date().toLocaleTimeString(),
+      d1, d2, sum, pairKey,
+      payout: totalPayoutThisRound
+    });
+
+    // Highlighting lasts for EXACTLY 1 second, then board clears and balances settle
+    setTimeout(() => {
+      // 1. Credit bankrolls
+      Object.keys(playerWinnings).forEach(pId => {
+        const p = players.find(x => x.id === parseInt(pId));
+        if (p) p.balance += playerWinnings[pId];
+      });
+
+      // 2. Remove winning highlight
+      document.querySelectorAll(".hex-bg").forEach(el => el.classList.remove("winning"));
+
+      // 3. Clear bets and update UI
+      bets = {};
+      updatePlayerBar();
+      renderChips();
+      isRolling = false;
+    }, 1000);
+  }
+
+  // UI Updates & Modals
+  function updatePlayerBar() {
+    const bar = document.getElementById("playerBar");
+    bar.innerHTML = "";
+
+    players.forEach((p, idx) => {
+      const card = document.createElement("div");
+      card.className = `player-card ${idx === activePlayerIndex ? 'active' : ''}`;
+      card.onclick = () => { if (!isRolling) { activePlayerIndex = idx; updatePlayerBar(); } };
+
+      card.innerHTML = `
+        <div style="display:flex; align-items:center;">
+          <span class="player-badge" style="background:${p.color};"></span>
+          <div class="player-info">
+            <span class="player-name">${p.name}</span>
+            <span class="player-balance">$${p.balance}</span>
+          </div>
+        </div>
+      `;
+      bar.appendChild(card);
+    });
+  }
+
+  function selectChip(val) {
+    selectedChipValue = val;
+    document.querySelectorAll(".chip").forEach(c => c.classList.remove("selected"));
+    document.querySelector(`.chip-${val}`).classList.add("selected");
+  }
+
+  // Rules Modal Actions
+  function openRulesModal() {
+    document.getElementById("rulesModal").classList.add("open");
+  }
+
+  function closeRulesModal() {
+    document.getElementById("rulesModal").classList.remove("open");
+  }
+
+  // Player Setup Modal Actions
+  function openMultiplayerModal() {
+    if (isRolling) return;
+    const container = document.getElementById("playerInputContainer");
+    container.innerHTML = "";
+
+    players.forEach((p, idx) => {
+      const row = document.createElement("div");
+      row.className = "player-input-row";
+      row.innerHTML = `
+        <span class="player-badge" style="background:${p.color}; width:16px; height:16px;"></span>
+        <input type="text" value="${p.name}" id="pname-${idx}">
+      `;
+      container.appendChild(row);
+    });
+
+    document.getElementById("playerModal").classList.add("open");
+  }
+
+  function adjustPlayerCount(delta) {
+    const colors = ["#06b6d4", "#f59e0b", "#ec4899", "#84cc16"];
+    if (delta > 0 && players.length < 4) {
+      players.push({ id: players.length + 1, name: `Player ${players.length + 1}`, balance: 500, color: colors[players.length] });
+    } else if (delta < 0 && players.length > 1) {
+      players.pop();
+    }
+    openMultiplayerModal();
+  }
+
+  function savePlayers() {
+    players.forEach((p, idx) => {
+      const input = document.getElementById(`pname-${idx}`);
+      if (input) p.name = input.value || `Player ${idx + 1}`;
+    });
+    if (activePlayerIndex >= players.length) activePlayerIndex = 0;
+    document.getElementById("playerModal").classList.remove("open");
+    updatePlayerBar();
+  }
+
+  // Export CSV
+  function exportHistoryCSV() {
+    if (historyLog.length === 0) return alert("No rolls logged yet!");
+    let csv = "Round,Timestamp,Die 1,Die 2,Sum,Winning Pair,Total Payout\n";
+    historyLog.forEach(h => {
+      csv += `${h.round},${h.timestamp},${h.d1},${h.d2},${h.sum},"${h.pairKey}",$${h.payout}\n`;
+    });
+
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `delta_roulette_history_${Date.now()}.csv`;
+    a.click();
+  }
+
+  // Fullscreen
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen();
+    } else {
+      document.exitFullscreen();
+    }
+  }
+
+  // Initialize
+  window.onload = () => {
+    renderMat();
+    drawDiePips("die1", 1);
+    drawDiePips("die2", 6);
+    updatePlayerBar();
+  };
+</script>
+</body>
+</html>
